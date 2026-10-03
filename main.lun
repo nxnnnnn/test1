@@ -1,0 +1,784 @@
+--[[
+    momo Script 🛸
+    Created for Mobile Executer (Updated: Removed Custom Toggle Icon)
+--]]
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "momo 🛸",
+   Icon = 0,
+   LoadingTitle = "momo Script Loading...",
+   LoadingSubtitle = "by momo",
+   ConfigurationSaving = {
+      Enabled = false,
+      FolderName = nil,
+      FileName = "momoConfig"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true
+   },
+   KeySystem = false
+})
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local LP = LocalPlayer
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+-- System Variables
+local SpeedEnabled = false
+local JumpEnabled = false
+local CustomSpeed = 50
+local CustomJump = 100
+local NormalSpeed = 16
+local NormalJump = 50
+
+local NoclipEnabled = false
+local ESPEnabled = false
+local ESPNameEnabled = false
+local ESPHighlights = {}
+local ESPNameTags = {}
+
+-- Hitbox Variables
+local HitboxEnabled = false
+local HitboxSize = 15
+local OriginalHitboxSizes = {}
+
+-- Safe Points Variables
+local SavedPositions = {}
+local SavedPointNames = {}
+local SelectedPointToTP = ""
+local SafePointCounter = 1
+local SafeInputName = ""
+
+-- Lighting Backup & Variables
+local OriginalFogStart = Lighting.FogStart
+local OriginalFogEnd = Lighting.FogEnd
+local OriginalBrightness = Lighting.Brightness
+local OriginalClockTime = Lighting.ClockTime
+local OriginalGlobalShadows = Lighting.GlobalShadows
+local OriginalAmbient = Lighting.Ambient
+local FullbrightEnabled = false
+
+-- New Features Variables
+local InfJumpEnabled = false
+local FlyEnabled = false
+local FlySpeed = 50
+local SelectedPlayerToTP = ""
+local SelectedPlayerToSpectate = ""
+local SpectateEnabled = false
+local CurrentFOV = 70
+
+-- Tabs
+local MainTab = Window:CreateTab("ฟังก์ชันหลัก / Main 🛸", 4483362458)
+local ESPTab = Window:CreateTab("ESP & แสง / Vision 👁️", 4483362458)
+local TeleportTab = Window:CreateTab("วาร์ป / Teleport 📍", 4483362458)
+local SpectateTab = Window:CreateTab("ส่องผู้เล่น / Spectate 👁️‍🗨️", 4483362458)
+local SettingsTab = Window:CreateTab("ตั้งค่า / Settings ⚙", 4483362458)
+
+------------------------------------------------------------------
+-- Character Function & Loop Update
+------------------------------------------------------------------
+local function updateMovement()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        local humanoid = LocalPlayer.Character.Humanoid
+        
+        if SpeedEnabled then
+            humanoid.WalkSpeed = CustomSpeed
+        else
+            humanoid.WalkSpeed = NormalSpeed
+        end
+
+        humanoid.UseJumpPower = true
+        if JumpEnabled then
+            humanoid.JumpPower = CustomJump
+        else
+            humanoid.JumpPower = NormalJump
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    updateMovement()
+end)
+
+------------------------------------------------------------------
+-- Helper Function for Players Dropdown
+------------------------------------------------------------------
+local function getOtherPlayerNames()
+    local names = {}
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            table.insert(names, plr.Name)
+        end
+    end
+    if #names == 0 then
+        return {"ไม่มีผู้เล่นอื่น"}
+    end
+    return names
+end
+
+------------------------------------------------------------------
+-- Hitbox System Loop
+------------------------------------------------------------------
+local function resetHitbox(player)
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = player.Character.HumanoidRootPart
+        local origSize = OriginalHitboxSizes[player] or Vector3.new(2, 2, 1)
+        hrp.Size = origSize
+        hrp.Transparency = 1
+        hrp.BrickColor = BrickColor.new("Medium stone grey")
+        hrp.Material = Enum.Material.Plastic
+        hrp.CanCollide = false
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if HitboxEnabled then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local hrp = player.Character.HumanoidRootPart
+                if not OriginalHitboxSizes[player] then
+                    OriginalHitboxSizes[player] = hrp.Size
+                end
+                hrp.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+                hrp.Transparency = 0.7
+                hrp.BrickColor = BrickColor.new("Really red")
+                hrp.Material = Enum.Material.Neon
+                hrp.CanCollide = false
+            end
+        end
+    end
+end)
+
+------------------------------------------------------------------
+-- 1. ฟังก์ชันหลัก (Speed, Jump, Noclip, Fly, InfJump, Hitbox)
+------------------------------------------------------------------
+
+-- Toggle Hitbox
+MainTab:CreateToggle({
+   Name = "เปิดใช้งาน Hitbox (ขยายหัว/ตัว)",
+   CurrentValue = false,
+   Flag = "HitboxToggle",
+   Callback = function(Value)
+      HitboxEnabled = Value
+      if not HitboxEnabled then
+         for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+               resetHitbox(player)
+            end
+         end
+         Rayfield:Notify({Title = "Hitbox 🎯", Content = "ปิดการใช้งาน Hitbox แล้ว", Duration = 2})
+      else
+         Rayfield:Notify({Title = "Hitbox 🎯", Content = "เปิดใช้งาน Hitbox แล้ว", Duration = 2})
+      end
+   end,
+})
+
+MainTab:CreateSlider({
+   Name = "ขนาด Hitbox (Hitbox Size)",
+   Range = {2, 50},
+   Increment = 1,
+   Suffix = "Studs",
+   CurrentValue = 15,
+   Flag = "HitboxSizeSlider",
+   Callback = function(Value)
+      HitboxSize = Value
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "เปิดใช้งาน วิ่งเร็ว (Speed Toggle)",
+   CurrentValue = false,
+   Flag = "SpeedToggle",
+   Callback = function(Value)
+      SpeedEnabled = Value
+      updateMovement()
+   end,
+})
+
+MainTab:CreateInput({
+   Name = "ตั้งค่าความเร็ววิ่ง (Custom Speed)",
+   PlaceholderText = "เช่น 50 (ปกติ 16)",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      if num then
+         CustomSpeed = num
+         updateMovement()
+      end
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "เปิดใช้งาน กระโดดสูง (Jump Toggle)",
+   CurrentValue = false,
+   Flag = "JumpToggle",
+   Callback = function(Value)
+      JumpEnabled = Value
+      updateMovement()
+   end,
+})
+
+MainTab:CreateInput({
+   Name = "ตั้งค่าความสูงกระโดด (Custom Jump)",
+   PlaceholderText = "เช่น 100 (ปกติ 50)",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      if num then
+         CustomJump = num
+         updateMovement()
+      end
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "กระโดดไม่จำกัด (Infinite Jump)",
+   CurrentValue = false,
+   Flag = "InfJumpToggle",
+   Callback = function(Value)
+      InfJumpEnabled = Value
+   end,
+})
+
+UserInputService.JumpRequest:Connect(function()
+    if InfJumpEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
+MainTab:CreateToggle({
+   Name = "เดินทะลุ (Noclip)",
+   CurrentValue = false,
+   Flag = "NoclipToggle",
+   Callback = function(Value)
+      NoclipEnabled = Value
+   end,
+})
+
+RunService.Stepped:Connect(function()
+    if NoclipEnabled and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+MainTab:CreateToggle({
+   Name = "เปิดใช้งาน การบิน (Fly)",
+   CurrentValue = false,
+   Flag = "FlyToggle",
+   Callback = function(Value)
+      FlyEnabled = Value
+      if not FlyEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+         local hrp = LocalPlayer.Character.HumanoidRootPart
+         local bg = hrp:FindFirstChild("momo_BodyGyro")
+         local bv = hrp:FindFirstChild("momo_BodyVelocity")
+         if bg then bg:Destroy() end
+         if bv then bv:Destroy() end
+      end
+   end,
+})
+
+MainTab:CreateSlider({
+   Name = "ความเร็วการบิน (Fly Speed)",
+   Range = {10, 300},
+   Increment = 5,
+   Suffix = "Speed",
+   CurrentValue = 50,
+   Flag = "FlySpeedSlider",
+   Callback = function(Value)
+      FlySpeed = Value
+   end,
+})
+
+RunService.RenderStepped:Connect(function()
+    if FlyEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        local camera = Workspace.CurrentCamera
+        
+        local bg = hrp:FindFirstChild("momo_BodyGyro") or Instance.new("BodyGyro")
+        bg.Name = "momo_BodyGyro"
+        bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+        bg.P = 9e4
+        bg.CFrame = camera.CFrame
+        bg.Parent = hrp
+
+        local bv = hrp:FindFirstChild("momo_BodyVelocity") or Instance.new("BodyVelocity")
+        bv.Name = "momo_BodyVelocity"
+        bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        bv.Velocity = camera.CFrame.LookVector * FlySpeed
+        bv.Parent = hrp
+    end
+end)
+
+------------------------------------------------------------------
+-- 2. ESP, แสงสว่าง & กล้อง (ESP & Visuals)
+------------------------------------------------------------------
+local function createESP(player)
+    if player == LocalPlayer then return end
+    local function applyHighlight(character)
+        if not character then return end
+        if not character:FindFirstChild("momo_ESP") then
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "momo_ESP"
+            highlight.FillColor = Color3.fromRGB(255, 0, 127)
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 0
+            highlight.Adornee = character
+            highlight.Parent = character
+            ESPHighlights[player] = highlight
+        end
+    end
+    if player.Character then applyHighlight(player.Character) end
+    player.CharacterAdded:Connect(applyHighlight)
+end
+
+local function removeESP()
+    for player, highlight in pairs(ESPHighlights) do
+        if highlight then highlight:Destroy() end
+    end
+    ESPHighlights = {}
+end
+
+ESPTab:CreateToggle({
+   Name = "ESP ผู้เล่น (Highlight)",
+   CurrentValue = false,
+   Flag = "ESPToggle",
+   Callback = function(Value)
+      ESPEnabled = Value
+      if ESPEnabled then
+         for _, player in pairs(Players:GetPlayers()) do createESP(player) end
+      else
+         removeESP()
+      end
+   end,
+})
+
+local function createNameESP(player)
+    if player == LocalPlayer then return end
+    local function applyNameTag(character)
+        if not character or character:FindFirstChild("momo_NameTag") then return end
+        local head = character:WaitForChild("Head", 5)
+        if not head then return end
+
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "momo_NameTag"
+        billboard.Adornee = head
+        billboard.Size = UDim2.new(0, 200, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+
+        local label = Instance.new("TextLabel")
+        label.Parent = billboard
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = Color3.fromRGB(0, 255, 255)
+        label.TextStrokeTransparency = 0
+        label.TextSize = 14
+        label.Font = Enum.Font.SourceSansBold
+        label.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+
+        billboard.Parent = character
+        ESPNameTags[player] = billboard
+    end
+
+    if player.Character then applyNameTag(player.Character) end
+    player.CharacterAdded:Connect(applyNameTag)
+end
+
+local function removeNameESP()
+    for player, tag in pairs(ESPNameTags) do
+        if tag then tag:Destroy() end
+    end
+    ESPNameTags = {}
+end
+
+ESPTab:CreateToggle({
+   Name = "ESP ชื่อผู้เล่น (Player Names)",
+   CurrentValue = false,
+   Flag = "ESPNameToggle",
+   Callback = function(Value)
+      ESPNameEnabled = Value
+      if ESPNameEnabled then
+         for _, player in pairs(Players:GetPlayers()) do createNameESP(player) end
+      else
+         removeNameESP()
+      end
+   end,
+})
+
+ESPTab:CreateToggle({
+   Name = "ลบหมอก (No Fog)",
+   CurrentValue = false,
+   Flag = "NoFogToggle",
+   Callback = function(Value)
+      if Value then
+         Lighting.FogStart = 9e9
+         Lighting.FogEnd = 9e9
+      else
+         Lighting.FogStart = OriginalFogStart
+         Lighting.FogEnd = OriginalFogEnd
+      end
+   end,
+})
+
+ESPTab:CreateToggle({
+   Name = "ปลดล็อกแสงสว่าง (Fullbright)",
+   CurrentValue = false,
+   Flag = "FullbrightToggle",
+   Callback = function(Value)
+      FullbrightEnabled = Value
+      if FullbrightEnabled then
+         Lighting.Brightness = 2
+         Lighting.ClockTime = 14
+         Lighting.GlobalShadows = false
+         Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+      else
+         Lighting.Brightness = OriginalBrightness
+         Lighting.ClockTime = OriginalClockTime
+         Lighting.GlobalShadows = OriginalGlobalShadows
+         Lighting.Ambient = OriginalAmbient
+      end
+   end,
+})
+
+ESPTab:CreateSlider({
+   Name = "ปรับระยะกล้อง (Field of View - FOV)",
+   Range = {30, 120},
+   Increment = 1,
+   Suffix = "FOV",
+   CurrentValue = 70,
+   Flag = "FOVSlider",
+   Callback = function(Value)
+      CurrentFOV = Value
+      Workspace.CurrentCamera.FieldOfView = CurrentFOV
+   end,
+})
+
+------------------------------------------------------------------
+-- 3. ระบบ Safe & วาร์ป & TP Tool (Teleportation)
+------------------------------------------------------------------
+
+local function GiveTPTool()
+    local mouse = LP:GetMouse()
+    local tool = Instance.new("Tool")
+    tool.RequiresHandle = false
+    tool.Name = "🖱️ Click to Teleport"
+    tool.Activated:Connect(function()
+        if mouse.Hit and LP.Character then
+            LP.Character:MoveTo(mouse.Hit.p + Vector3.new(0, 3, 0))
+        end
+    end)
+    tool.Parent = LP.Backpack
+    Rayfield:Notify({Title = "ระบบ", Content = "ได้รับเครื่องมือคลิกวาร์ปแล้ว!", Duration = 3})
+end
+
+TeleportTab:CreateButton({
+   Name = "รับเครื่องมือ คลิกเพื่อวาร์ป",
+   Callback = GiveTPTool,
+})
+
+-- Safe Points Section
+TeleportTab:CreateInput({
+   Name = "ตั้งชื่อจุด Safe (ใส่หรือไม่ใส่ก็ได้)",
+   PlaceholderText = "เช่น บ้าน, จุดซ่อนตัว 1",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      SafeInputName = Text
+   end,
+})
+
+local SafeDropdown = TeleportTab:CreateDropdown({
+   Name = "📍 เลือกจุด Safe ที่บันทึกไว้",
+   Options = {"ยังไม่มีจุด Safe"},
+   CurrentOption = {"ยังไม่มีจุด Safe"},
+   MultipleOptions = false,
+   Flag = "SafePointDropdown",
+   Callback = function(Option)
+      SelectedPointToTP = Option[1]
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "➕ บันทึกจุด Safe ปัจจุบัน",
+   Callback = function()
+      if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+         local pointName = SafeInputName
+         if pointName == "" then
+            pointName = "Safe Point " .. tostring(SafePointCounter)
+            SafePointCounter = SafePointCounter + 1
+         end
+         
+         SavedPositions[pointName] = LocalPlayer.Character.HumanoidRootPart.CFrame
+         
+         table.insert(SavedPointNames, pointName)
+         SafeDropdown:Refresh(SavedPointNames)
+         SafeDropdown:Set({pointName})
+         SelectedPointToTP = pointName
+
+         Rayfield:Notify({
+            Title = "momo 🛸 Safe Saved!",
+            Content = "บันทึกจุด '" .. pointName .. "' เรียบร้อยแล้ว",
+            Duration = 3,
+         })
+      end
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "🚀 วาร์ปไปจุด Safe ที่เลือก",
+   Callback = function()
+      if SelectedPointToTP ~= "" and SavedPositions[SelectedPointToTP] then
+         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = SavedPositions[SelectedPointToTP]
+            Rayfield:Notify({
+               Title = "momo 🛸 Teleported!",
+               Content = "วาร์ปไปที่: " .. SelectedPointToTP,
+               Duration = 3,
+            })
+         end
+      else
+         Rayfield:Notify({
+            Title = "momo 🛸 Warning",
+            Content = "กรุณาเลือกจุด Safe ที่ต้องการวาร์ปก่อนครับ",
+            Duration = 3,
+         })
+      end
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "🗑️ ลบจุด Safe ที่เลือกออก",
+   Callback = function()
+      if SelectedPointToTP ~= "" and SavedPositions[SelectedPointToTP] then
+         SavedPositions[SelectedPointToTP] = nil
+         
+         for i, name in ipairs(SavedPointNames) do
+            if name == SelectedPointToTP then
+               table.remove(SavedPointNames, i)
+               break
+            end
+         end
+         
+         if #SavedPointNames == 0 then
+            SafeDropdown:Refresh({"ยังไม่มีจุด Safe"})
+            SafeDropdown:Set({"ยังไม่มีจุด Safe"})
+            SelectedPointToTP = ""
+         else
+            SafeDropdown:Refresh(SavedPointNames)
+            SafeDropdown:Set({SavedPointNames[1]})
+            SelectedPointToTP = SavedPointNames[1]
+         end
+
+         Rayfield:Notify({
+            Title = "momo 🛸 Deleted",
+            Content = "ลบจุด Safe ออกแล้ว",
+            Duration = 2,
+         })
+      end
+   end,
+})
+
+-- Player Teleport Section
+local PlayerTPDropdown = TeleportTab:CreateDropdown({
+   Name = "👤 เลือกผู้เล่นที่ต้องการวาร์ปไปหา",
+   Options = getOtherPlayerNames(),
+   CurrentOption = {getOtherPlayerNames()[1]},
+   MultipleOptions = false,
+   Flag = "PlayerTPDropdown",
+   Callback = function(Option)
+      SelectedPlayerToTP = Option[1]
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "🔄 อัปเดตรายชื่อผู้เล่น",
+   Callback = function()
+      local updatedList = getOtherPlayerNames()
+      PlayerTPDropdown:Refresh(updatedList)
+      PlayerTPDropdown:Set({updatedList[1]})
+      Rayfield:Notify({
+         Title = "momo 🛸 Updated!",
+         Content = "อัปเดตรายชื่อผู้เล่นเรียบร้อยแล้ว",
+         Duration = 2,
+      })
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "⚡ วาร์ปไปหาผู้เล่นที่เลือก",
+   Callback = function()
+      if SelectedPlayerToTP ~= "" and SelectedPlayerToTP ~= "ไม่มีผู้เล่นอื่น" then
+         local targetPlr = Players:FindFirstChild(SelectedPlayerToTP)
+         if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart") then
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+               LocalPlayer.Character.HumanoidRootPart.CFrame = targetPlr.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+               Rayfield:Notify({
+                  Title = "momo 🛸 Teleported!",
+                  Content = "วาร์ปไปหา " .. SelectedPlayerToTP .. " เรียบร้อยแล้ว",
+                  Duration = 3,
+               })
+            end
+         else
+            Rayfield:Notify({
+               Title = "momo 🛸 Error",
+               Content = "ไม่พบตัวละครของผู้เล่นเป้าหมาย",
+               Duration = 3,
+            })
+         end
+      end
+   end,
+})
+
+------------------------------------------------------------------
+-- 4. ฟังก์ชันส่องผู้เล่น (Spectate Player)
+------------------------------------------------------------------
+
+local function resetCameraToSelf()
+    local camera = Workspace.CurrentCamera
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        camera.CameraSubject = LocalPlayer.Character.Humanoid
+    end
+end
+
+local SpectateDropdown = SpectateTab:CreateDropdown({
+   Name = "👤 เลือกผู้เล่นที่ต้องการส่อง",
+   Options = getOtherPlayerNames(),
+   CurrentOption = {getOtherPlayerNames()[1]},
+   MultipleOptions = false,
+   Flag = "SpectateDropdown",
+   Callback = function(Option)
+      SelectedPlayerToSpectate = Option[1]
+      
+      if SpectateEnabled then
+         local targetPlr = Players:FindFirstChild(SelectedPlayerToSpectate)
+         if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("Humanoid") then
+            Workspace.CurrentCamera.CameraSubject = targetPlr.Character.Humanoid
+         end
+      end
+   end,
+})
+
+SpectateTab:CreateToggle({
+   Name = "👁️‍🗨️ เปิดใช้งานการส่อง (Spectate Toggle)",
+   CurrentValue = false,
+   Flag = "SpectateToggle",
+   Callback = function(Value)
+      SpectateEnabled = Value
+      if SpectateEnabled then
+         if SelectedPlayerToSpectate ~= "" and SelectedPlayerToSpectate ~= "ไม่มีผู้เล่นอื่น" then
+            local targetPlr = Players:FindFirstChild(SelectedPlayerToSpectate)
+            if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("Humanoid") then
+               Workspace.CurrentCamera.CameraSubject = targetPlr.Character.Humanoid
+               Rayfield:Notify({
+                  Title = "momo 🛸 Spectating",
+                  Content = "กำลังส่อง: " .. SelectedPlayerToSpectate,
+                  Duration = 3,
+               })
+            else
+               Rayfield:Notify({
+                  Title = "momo 🛸 Error",
+                  Content = "ไม่พบตัวละครของผู้เล่นเป้าหมาย",
+                  Duration = 3,
+               })
+            end
+         end
+      else
+         resetCameraToSelf()
+         Rayfield:Notify({
+            Title = "momo 🛸 Spectate Stopped",
+            Content = "กลับสู่มุมมองตัวละครของคุณแล้ว",
+            Duration = 2,
+         })
+      end
+   end,
+})
+
+SpectateTab:CreateButton({
+   Name = "🔄 อัปเดตรายชื่อผู้เล่น",
+   Callback = function()
+      local updatedList = getOtherPlayerNames()
+      SpectateDropdown:Refresh(updatedList)
+      SpectateDropdown:Set({updatedList[1]})
+      Rayfield:Notify({
+         Title = "momo 🛸 Updated!",
+         Content = "อัปเดตรายชื่อผู้เล่นเรียบร้อยแล้ว",
+         Duration = 2,
+      })
+   end,
+})
+
+------------------------------------------------------------------
+-- 5. ระบบตั้งค่า & ภาษา (Settings)
+------------------------------------------------------------------
+SettingsTab:CreateDropdown({
+   Name = "เลือกภาษา / Select Language",
+   Options = {"ภาษาไทย 🇹🇭", "English 🇬🇧"},
+   CurrentOption = {"ภาษาไทย 🇹🇭"},
+   MultipleOptions = false,
+   Flag = "LangDropdown",
+   Callback = function(Option)
+      local selected = Option[1]
+      if selected == "ภาษาไทย 🇹🇭" then
+         Rayfield:Notify({
+            Title = "momo 🛸",
+            Content = "เปลี่ยนภาษาเป็น ภาษาไทย แล้ว",
+            Duration = 2,
+         })
+      else
+         Rayfield:Notify({
+            Title = "momo 🛸",
+            Content = "Language changed to English",
+            Duration = 2,
+         })
+      end
+   end,
+})
+
+-- Player Join/Leave Update Event
+Players.PlayerAdded:Connect(function(player)
+    if ESPEnabled then createESP(player) end
+    if ESPNameEnabled then createNameESP(player) end
+    PlayerTPDropdown:Refresh(getOtherPlayerNames())
+    SpectateDropdown:Refresh(getOtherPlayerNames())
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if ESPHighlights[player] then
+        ESPHighlights[player]:Destroy()
+        ESPHighlights[player] = nil
+    end
+    if ESPNameTags[player] then
+        ESPNameTags[player]:Destroy()
+        ESPNameTags[player] = nil
+    end
+    if OriginalHitboxSizes[player] then
+        OriginalHitboxSizes[player] = nil
+    end
+    
+    if SelectedPlayerToSpectate == player.Name then
+        resetCameraToSelf()
+        SpectateEnabled = false
+    end
+    
+    PlayerTPDropdown:Refresh(getOtherPlayerNames())
+    SpectateDropdown:Refresh(getOtherPlayerNames())
+end)
+
+Rayfield:Notify({
+   Title = "momo 🛸 Loaded!",
+   Content = "สคริปต์พร้อมใช้งานแล้วครับ",
+   Duration = 4,
+   Image = 4483362458,
+})
